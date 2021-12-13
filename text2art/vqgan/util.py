@@ -88,28 +88,6 @@ class ClampWithGrad(torch.autograd.Function):
 clamp_with_grad = ClampWithGrad.apply
 
 
-def vector_quantize(x, codebook):
-    d = x.pow(2).sum(dim=-1, keepdim=True) + codebook.pow(2).sum(dim=1) - 2 * x @ codebook.T
-    indices = d.argmin(-1)
-    x_q = F.one_hot(indices, codebook.shape[0]).to(d.dtype) @ codebook
-    return replace_grad(x_q, x)
-
-
-class Prompt(nn.Module):
-    def __init__(self, embed, weight=1.0, stop=float("-inf")):
-        super().__init__()
-        self.register_buffer("embed", embed)
-        self.register_buffer("weight", torch.as_tensor(weight))
-        self.register_buffer("stop", torch.as_tensor(stop))
-
-    def forward(self, input):
-        input_normed = F.normalize(input.unsqueeze(1), dim=2)
-        embed_normed = F.normalize(self.embed.unsqueeze(0), dim=2)
-        dists = input_normed.sub(embed_normed).norm(dim=2).div(2).arcsin().pow(2).mul(2)
-        dists = dists * self.weight.sign()
-        return self.weight.abs() * replace_grad(dists, torch.maximum(dists, self.stop)).mean()
-
-
 def fetch(url_or_path):
     # Fetch a file from the internet or the local filesystem.
     if str(url_or_path).startswith("http://") or str(url_or_path).startswith("https://"):
@@ -137,38 +115,12 @@ def parse_prompt(prompt):
     return vals[0], float(vals[1]), float(vals[2])
 
 
-class MakeCutouts(nn.Module):
-    def __init__(self, cut_size, cutn, cut_pow=1.0):
-        super().__init__()
-        self.cut_size = cut_size
-        self.cutn = cutn
-        self.cut_pow = cut_pow
-
-    def forward(self, input):
-        sideY, sideX = input.shape[2:4]
-        max_size = min(sideX, sideY)
-        min_size = min(sideX, sideY, self.cut_size)
-        cutouts = []
-        for _ in range(self.cutn):
-            size = int(torch.rand([]) ** self.cut_pow * (max_size - min_size) + min_size)
-            offsetx = torch.randint(0, sideX - size + 1, ())
-            offsety = torch.randint(0, sideY - size + 1, ())
-            cutout = input[:, :, offsety : offsety + size, offsetx : offsetx + size]
-            cutouts.append(resample(cutout, (self.cut_size, self.cut_size)))
-        return clamp_with_grad(torch.cat(cutouts, dim=0), 0, 1)
-
-
 def load_vqgan_model(config_path, checkpoint_path):
     config = OmegaConf.load(config_path)
     if config.model.target == "taming.models.vqgan.VQModel":
         model = vqgan.VQModel(**config.model.params)
         model.eval().requires_grad_(False)
         model.init_from_ckpt(checkpoint_path)
-    elif config.model.target == "taming.models.cond_transformer.Net2NetTransformer":
-        parent_model = cond_transformer.Net2NetTransformer(**config.model.params)
-        parent_model.eval().requires_grad_(False)
-        parent_model.init_from_ckpt(checkpoint_path)
-        model = parent_model.first_stage_model
     else:
         raise ValueError(f"unknown model type: {config.model.target}")
     del model.loss
