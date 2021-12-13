@@ -9,6 +9,7 @@ make env
 make activate
 make deps
 make models
+```
 
 ## Run text2art
 ```
