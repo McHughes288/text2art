@@ -13,3 +13,10 @@ check:
 	pylint "${includes}"
 format:
 	black "${includes}"
+env:
+	pip3 install virtualenv 
+	virtualenv -p python3 venv
+activate:
+	source venv/bin/activate
+models:
+	./scripts/download_models.sh --model_name VQGAN
