@@ -1,0 +1,8 @@
+logs
+__pycache__
+venv
+.ipynb_checkpoints
+.vscode
+htmlcov
+.nfs*
+.coverage*
