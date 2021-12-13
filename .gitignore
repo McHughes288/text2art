@@ -1,6 +1,7 @@
 logs
 __pycache__
 venv
+models
 .ipynb_checkpoints
 .vscode
 htmlcov
