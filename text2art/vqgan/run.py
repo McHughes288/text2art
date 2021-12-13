@@ -115,7 +115,7 @@ def main():
 
     # Create output dir for images based on text prompt
     text_prompt = urlify(args.prompts[0])
-    image_dir = f"{args.work_dir}/{text_prompt}"
+    image_dir = f"{args.work_dir}/images"
     os.makedirs(image_dir, exist_ok=True)
 
     # Load pre trained models
@@ -203,7 +203,6 @@ def main():
             print(f"i: {i}, loss: {sum(losses).item():g}, losses: {losses_str}")
             with torch.no_grad():
                 out = synthesize(z, model)
-
                 TF.to_pil_image(out[0].cpu()).save(f"{image_dir}/{text_prompt}_step{i}.png")
 
         # Sum losses for each prompt and update parameters accordingly

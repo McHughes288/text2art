@@ -9,22 +9,21 @@ JOB_REASON="text2art"
 JOB_QUEUE="aml-gpu.q@gpu-aa,aml-gpu.q@gpu-ab"
 WORK_ROOT=/exp/$(whoami)/text2art
 
-msg="text2art"
-seed=1
-
 model_name=VQGAN
+prompt=             # e.g. "A zombie walking through a rainforest #artstation"
+name=               # e.g. zombie
+seed=1
+steps=500
+# Size (w768 h432 works for widescreen)
+width=480
+height=480
 
 . ./scripts/parse_options.sh || exit 1;
 
-if [[ "$model_name" == "VQGAN" ]]; then
-    echo "VQGAN"
-else
-    echo "Model name called '$dataset' not supported"
-    exit 1;
-fi
+[ -z $prompt ] && echo "please provide a prompt" && exit 1
+[ -z $name ] && echo "please provide a name" && exit 1
 
-
-WORK_DIR=${WORK_ROOT}/$(date +"%Y%m%d_%H%M%S")_model_${model_name}
+WORK_DIR=${WORK_ROOT}/model_${model_name}/${name}
 VENV=$CODE_DIR/venv
 
 mkdir -p "$WORK_DIR"
@@ -63,11 +62,17 @@ echo "pstree_pid:  \$\$"
 echo
 
 echo "\$(date -u) starting \${JOB_ID}" >> ${WORK_DIR}/sge_job_id
+source $VENV/bin/activate
 
 if [[ ! -f ${WORK_DIR}/done ]]; then
-    python3 -m text2art.vqgan.run
+    python3 -m text2art.vqgan.run \
+        --prompts "$prompt" \
+        --work_dir "$WORK_DIR" \
+        --size "$width" "$height" \
+        --steps "$steps" \
+        --seed "$seed" 
+
     touch ${WORK_DIR}/done
-    esac
 fi
 
 EOF
