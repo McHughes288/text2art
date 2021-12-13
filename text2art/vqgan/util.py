@@ -1,5 +1,6 @@
 import io
 import math
+import re
 
 import sys
 
@@ -110,6 +111,7 @@ class Prompt(nn.Module):
 
 
 def fetch(url_or_path):
+    # Fetch a file from the internet or the local filesystem.
     if str(url_or_path).startswith("http://") or str(url_or_path).startswith("https://"):
         r = requests.get(url_or_path)
         r.raise_for_status()
@@ -121,6 +123,11 @@ def fetch(url_or_path):
 
 
 def parse_prompt(prompt):
+    # Can take in a string of form "<prompt>:<weight>:<stop>", "<prompt>:<weight>"
+    # or simply "<prompt>".
+    # If <weight> is not specified, it defaults to 1.0.
+    # If <stop> is not specified, it defaults to -inf.
+    # Return a tuple of (prompt, weight, stop)
     if prompt.startswith("http://") or prompt.startswith("https://"):
         vals = prompt.rsplit(":", 3)
         vals = [vals[0] + ":" + vals[1], *vals[2:]]
@@ -173,3 +180,11 @@ def resize_image(image, out_size):
     area = min(image.size[0] * image.size[1], out_size[0] * out_size[1])
     size = round((area * ratio) ** 0.5), round((area / ratio) ** 0.5)
     return image.resize(size, Image.LANCZOS)
+
+
+def urlify(s):
+    # Remove all non-word characters (everything except numbers and letters)
+    s = re.sub(r"[^\w\s]", "", s)
+    # Replace all runs of whitespace with a single dash
+    s = re.sub(r"\s+", "-", s)
+    return s
