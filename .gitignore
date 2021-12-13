@@ -7,3 +7,5 @@ models
 htmlcov
 .nfs*
 .coverage*
+taming
+*.png

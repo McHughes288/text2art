@@ -1,6 +1,10 @@
 import io
 import math
 
+import sys
+
+sys.path.append("./venv/src/taming-transformers")
+
 from omegaconf import OmegaConf
 from PIL import Image
 import requests

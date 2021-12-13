@@ -1,8 +1,4 @@
 import argparse
-import sys
-
-# sys.path.append('./taming-transformers')
-
 from PIL import Image
 import torch
 from torch import optim
@@ -11,8 +7,8 @@ from torchvision import transforms
 from torchvision.transforms import functional as TF
 from tqdm.notebook import tqdm
 
-from CLIP import clip
-from util import (
+from clip import clip
+from text2art.vqgan.util import (
     vector_quantize,
     Prompt,
     fetch,
@@ -38,8 +34,12 @@ def main():
     parser.add_argument("--init_image", type=str)
     parser.add_argument("--init_weight", type=float, default=0.0)
     parser.add_argument("--clip_model", type=str, default="ViT-B/32")
-    parser.add_argument("--vqgan_config", type=str, default="vqgan_imagenet_f16_1024.yaml")
-    parser.add_argument("--vqgan_checkpoint", type=str, default="vqgan_imagenet_f16_1024.ckpt")
+    parser.add_argument(
+        "--vqgan_config", type=str, default="models/VQGAN/vqgan_imagenet_f16_1024.yaml"
+    )
+    parser.add_argument(
+        "--vqgan_checkpoint", type=str, default="models/VQGAN/vqgan_imagenet_f16_1024.ckpt"
+    )
     parser.add_argument("--step_size", type=float, default=0.05)
     parser.add_argument("--cutn", type=int, default=64)
     parser.add_argument("--cut_pow", type=float, default=1.0)

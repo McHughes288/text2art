@@ -20,4 +20,4 @@ jupyterlab
 matplotlib
 
 git+https://github.com/openai/CLIP.git
-git+https://github.com/CompVis/taming-transformers
+-e git+https://github.com/CompVis/taming-transformers#egg=taming-transformers
