@@ -2,13 +2,18 @@
 Hackamatics project 2021 with the aim to pull together all text2art resources and get it running on our GPUs.
 
 
-## Getting started:
+## Initial setup
 ```
-pip3 install virtualenv 
-virtualenv -p python3 venv
-source venv/bin/activate
-pip3 install -r requirements.txt
+# Setup environment and download models (one time only)
+make env
+make activate
 make deps
-git clone https://github.com/CompVis/taming-transformers
-pip install -e ./taming-transformers
+make models
+
+## Run text2art
+```
+# grab GPU then run
+qlogin -now n -pe smp 1 -q aml-gpu.q -l gpu=1 -pty y -N D_$(whoami)
+cd ~/git/text2art && make activate
+python3 -m text2art.vqgan.run --prompts "Three engineers hard at work during Hackamatics #artstation"
 ```
