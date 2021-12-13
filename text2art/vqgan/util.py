@@ -16,7 +16,7 @@ def sinc(x):
 
 def lanczos(x, a):
     cond = torch.logical_and(-a < x, x < a)
-    out = torch.where(cond, sinc(x) * sinc(x/a), x.new_zeros([]))
+    out = torch.where(cond, sinc(x) * sinc(x / a), x.new_zeros([]))
     return out / out.sum()
 
 
@@ -39,17 +39,17 @@ def resample(input, size, align_corners=True):
     if dh < h:
         kernel_h = lanczos(ramp(dh / h, 2), 2).to(input.device, input.dtype)
         pad_h = (kernel_h.shape[0] - 1) // 2
-        input = F.pad(input, (0, 0, pad_h, pad_h), 'reflect')
+        input = F.pad(input, (0, 0, pad_h, pad_h), "reflect")
         input = F.conv2d(input, kernel_h[None, None, :, None])
 
     if dw < w:
         kernel_w = lanczos(ramp(dw / w, 2), 2).to(input.device, input.dtype)
         pad_w = (kernel_w.shape[0] - 1) // 2
-        input = F.pad(input, (pad_w, pad_w, 0, 0), 'reflect')
+        input = F.pad(input, (pad_w, pad_w, 0, 0), "reflect")
         input = F.conv2d(input, kernel_w[None, None, None, :])
 
     input = input.view([n, c, h, w])
-    return F.interpolate(input, size, mode='bicubic', align_corners=align_corners)
+    return F.interpolate(input, size, mode="bicubic", align_corners=align_corners)
 
 
 class ReplaceGrad(torch.autograd.Function):
@@ -76,7 +76,7 @@ class ClampWithGrad(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_in):
-        input, = ctx.saved_tensors
+        (input,) = ctx.saved_tensors
         return grad_in * (grad_in * (input - input.clamp(ctx.min, ctx.max)) >= 0), None, None
 
 
@@ -91,11 +91,11 @@ def vector_quantize(x, codebook):
 
 
 class Prompt(nn.Module):
-    def __init__(self, embed, weight=1., stop=float('-inf')):
+    def __init__(self, embed, weight=1.0, stop=float("-inf")):
         super().__init__()
-        self.register_buffer('embed', embed)
-        self.register_buffer('weight', torch.as_tensor(weight))
-        self.register_buffer('stop', torch.as_tensor(stop))
+        self.register_buffer("embed", embed)
+        self.register_buffer("weight", torch.as_tensor(weight))
+        self.register_buffer("stop", torch.as_tensor(stop))
 
     def forward(self, input):
         input_normed = F.normalize(input.unsqueeze(1), dim=2)
@@ -106,28 +106,28 @@ class Prompt(nn.Module):
 
 
 def fetch(url_or_path):
-    if str(url_or_path).startswith('http://') or str(url_or_path).startswith('https://'):
+    if str(url_or_path).startswith("http://") or str(url_or_path).startswith("https://"):
         r = requests.get(url_or_path)
         r.raise_for_status()
         fd = io.BytesIO()
         fd.write(r.content)
         fd.seek(0)
         return fd
-    return open(url_or_path, 'rb')
+    return open(url_or_path, "rb")
 
 
 def parse_prompt(prompt):
-    if prompt.startswith('http://') or prompt.startswith('https://'):
-        vals = prompt.rsplit(':', 3)
-        vals = [vals[0] + ':' + vals[1], *vals[2:]]
+    if prompt.startswith("http://") or prompt.startswith("https://"):
+        vals = prompt.rsplit(":", 3)
+        vals = [vals[0] + ":" + vals[1], *vals[2:]]
     else:
-        vals = prompt.rsplit(':', 2)
-    vals = vals + ['', '1', '-inf'][len(vals):]
+        vals = prompt.rsplit(":", 2)
+    vals = vals + ["", "1", "-inf"][len(vals) :]
     return vals[0], float(vals[1]), float(vals[2])
 
 
 class MakeCutouts(nn.Module):
-    def __init__(self, cut_size, cutn, cut_pow=1.):
+    def __init__(self, cut_size, cutn, cut_pow=1.0):
         super().__init__()
         self.cut_size = cut_size
         self.cutn = cutn
@@ -139,27 +139,27 @@ class MakeCutouts(nn.Module):
         min_size = min(sideX, sideY, self.cut_size)
         cutouts = []
         for _ in range(self.cutn):
-            size = int(torch.rand([])**self.cut_pow * (max_size - min_size) + min_size)
+            size = int(torch.rand([]) ** self.cut_pow * (max_size - min_size) + min_size)
             offsetx = torch.randint(0, sideX - size + 1, ())
             offsety = torch.randint(0, sideY - size + 1, ())
-            cutout = input[:, :, offsety:offsety + size, offsetx:offsetx + size]
+            cutout = input[:, :, offsety : offsety + size, offsetx : offsetx + size]
             cutouts.append(resample(cutout, (self.cut_size, self.cut_size)))
         return clamp_with_grad(torch.cat(cutouts, dim=0), 0, 1)
 
 
 def load_vqgan_model(config_path, checkpoint_path):
     config = OmegaConf.load(config_path)
-    if config.model.target == 'taming.models.vqgan.VQModel':
+    if config.model.target == "taming.models.vqgan.VQModel":
         model = vqgan.VQModel(**config.model.params)
         model.eval().requires_grad_(False)
         model.init_from_ckpt(checkpoint_path)
-    elif config.model.target == 'taming.models.cond_transformer.Net2NetTransformer':
+    elif config.model.target == "taming.models.cond_transformer.Net2NetTransformer":
         parent_model = cond_transformer.Net2NetTransformer(**config.model.params)
         parent_model.eval().requires_grad_(False)
         parent_model.init_from_ckpt(checkpoint_path)
         model = parent_model.first_stage_model
     else:
-        raise ValueError(f'unknown model type: {config.model.target}')
+        raise ValueError(f"unknown model type: {config.model.target}")
     del model.loss
     return model
 
@@ -167,5 +167,5 @@ def load_vqgan_model(config_path, checkpoint_path):
 def resize_image(image, out_size):
     ratio = image.size[0] / image.size[1]
     area = min(image.size[0] * image.size[1], out_size[0] * out_size[1])
-    size = round((area * ratio)**0.5), round((area / ratio)**0.5)
+    size = round((area * ratio) ** 0.5), round((area / ratio) ** 0.5)
     return image.resize(size, Image.LANCZOS)
