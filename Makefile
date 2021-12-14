@@ -1,5 +1,5 @@
 .DEFAULT_GOAL=all
-includes="*.py"
+includes="."
 
 all: deps check
 
