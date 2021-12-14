@@ -5,8 +5,6 @@ import torchvision
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 import argparse
-import PIL
-import matplotlib.pyplot as plt
 
 from IPython import display
 from IPython.core.interactiveshell import InteractiveShell
