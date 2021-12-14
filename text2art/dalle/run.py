@@ -67,11 +67,10 @@ def main():
     parser.add_argument("--lr", type=float, default=0.1)
     args = parser.parse_args()
     args.size = [int(x) for x in args.size]
-
     sideX, sideY = args.size
 
+    # Load CLIP and DALL-E models
     perceptor = clip.load(args.clip_model, jit=True)[0].eval()
-
     model = load_model("https://cdn.openai.com/dall-e/decoder.pkl", "cuda")
 
     lats = Pars().cuda()
@@ -79,9 +78,12 @@ def main():
     optimizer = torch.optim.Adam([{"params": mapper, "lr": args.lr}])
     eps = 0
 
+    # Tokenize text prompt and encode in CLIP
     tx = clip.tokenize(args.prompts)
     t = perceptor.encode_text(tx.cuda()).detach().clone()
 
+    # Normalise function to be used on these image "cutouts" in order to get an average
+    # image that represents the resolution required.
     nom = torchvision.transforms.Normalize(
         (0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)
     )
