@@ -15,7 +15,7 @@ import clip
 
 import re
 
-from dall_e import map_pixels, unmap_pixels, load_model
+from dall_e import unmap_pixels, load_model
 
 
 def displ(img, pre_scaled=True):
