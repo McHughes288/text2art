@@ -4,7 +4,7 @@ import numpy as np
 import torchvision
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
-
+import argparse
 import PIL
 import matplotlib.pyplot as plt
 
@@ -20,6 +20,7 @@ import clip
 import io
 import sys
 import requests
+import re
 
 from dall_e import map_pixels, unmap_pixels, load_model
 
@@ -27,24 +28,15 @@ from dall_e import map_pixels, unmap_pixels, load_model
 def displ(img, pre_scaled=True):
     img = np.array(img)[:, :, :]
     img = np.transpose(img, (1, 2, 0))
-    # if not pre_scaled:
-    # img = scale(img, 48*4, 32*4)
-    # imageio.imwrite(str(3) + '.png', np.array(img))
     return display.Image(str(3) + ".png")
 
 
-def preprocess(img):
-    s = min(img.size)
-
-    if s < target_image_size:
-        raise ValueError(f"min dim for image {s} < {target_image_size}")
-
-    r = target_image_size / s
-    s = (round(r * img.size[1]), round(r * img.size[0]))
-    img = TF.resize(img, s, interpolation=PIL.Image.LANCZOS)
-    img = TF.center_crop(img, output_size=2 * [target_image_size])
-    img = torch.unsqueeze(T.ToTensor()(img), 0)
-    return map_pixels(img)
+def urlify(s):
+    # Remove all non-word characters (everything except numbers and letters)
+    s = re.sub(r"[^\w\s]", "", s)
+    # Replace all runs of whitespace with a single dash
+    s = re.sub(r"\s+", "-", s)
+    return s
 
 
 class Pars(torch.nn.Module):
@@ -59,104 +51,90 @@ class Pars(torch.nn.Module):
         return normu
 
 
-def checkin(loss):
-    print(itt, "loss", loss[1].item())
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run DALL-E and CLIP system on given text prompt",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--prompts", nargs="+", default=[], required=True)
+    parser.add_argument("--work_dir", type=str, default="./images")
+    parser.add_argument("--image_prompts", nargs="+", default=[])
+    parser.add_argument("--noise_prompt_seeds", nargs="+", default=[])
+    parser.add_argument("--noise_prompt_weights", nargs="+", default=[])
+    parser.add_argument("--size", nargs="+", default=[480, 480, 3])
+    parser.add_argument("--init_image", type=str)
+    parser.add_argument("--init_weight", type=float, default=0.0)
+    parser.add_argument("--clip_model", type=str, default="ViT-B/32")
+    parser.add_argument("--step_size", type=float, default=0.05)
+    parser.add_argument("--number_of_cuts", type=int, default=64)
+    parser.add_argument("--cut_pow", type=float, default=1.0)
+    parser.add_argument("--display_freq", type=int, default=10)
+    parser.add_argument("--steps", type=int, default=50000)
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
+    args.size = [int(x) for x in args.size]
 
-    with torch.no_grad():
-        al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
-    for allls in al:
-        displ(allls)
-        print(al[0].shape)
-        TF.to_pil_image(torch.tensor(al[0]).cpu()).save(f"./images/images/{prompt}.png")
+    sideX, sideY, channels = args.size
+    target_image_size = sideX
 
-        # display.display(display.Image(str(3)+'.png'))
-        # print('\n')
-    # the people spoke and they love "ding"
-    # output.eval_js('new Audio("https://freesound.org/data/previews/80/80921_1022651-lq.ogg").play()')
+    perceptor = clip.load(args.clip_model, jit=True)[0].eval()
 
+    model = load_model("https://cdn.openai.com/dall-e/decoder.pkl", "cuda")
 
-def ascend_txt():
-    out = unmap_pixels(torch.sigmoid(model(lats())[:, :3].float()))
+    lats = Pars().cuda()
+    mapper = [lats.normu]
+    optimizer = torch.optim.Adam([{"params": mapper, "lr": 0.1}])
+    eps = 0
 
-    cutn = 64  # improves quality
-    p_s = []
-    for ch in range(cutn):
-        size = int(
-            sideX
-            * torch.zeros(
-                1,
+    tx = clip.tokenize(args.prompts)
+    t = perceptor.encode_text(tx.cuda()).detach().clone()
+
+    nom = torchvision.transforms.Normalize(
+        (0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)
+    )
+
+    i = 0
+    while True:
+        out = unmap_pixels(torch.sigmoid(model(lats())[:, :3].float()))
+        cutn = args.number_of_cuts  # improves quality
+        p_s = []
+        for ch in range(cutn):
+            size = int(
+                sideX
+                * torch.zeros(
+                    1,
+                )
+                .normal_(mean=0.8, std=0.3)
+                .clip(0.5, 0.98)
             )
-            .normal_(mean=0.8, std=0.3)
-            .clip(0.5, 0.98)
-        )
-        offsetx = torch.randint(0, sideX - size, ())
-        offsety = torch.randint(0, sideX - size, ())
-        apper = out[:, :, offsetx : offsetx + size, offsety : offsety + size]
-        apper = torch.nn.functional.interpolate(apper, (224, 224), mode="bilinear")
-        p_s.append(apper)
-    into = torch.cat(p_s, 0)
-    # into = torch.nn.functional.interpolate(out, (224,224), mode='nearest')
+            offsetx = torch.randint(0, sideX - size, ())
+            offsety = torch.randint(0, sideX - size, ())
+            apper = out[:, :, offsetx : offsetx + size, offsety : offsety + size]
+            apper = torch.nn.functional.interpolate(apper, (224, 224), mode="bilinear")
+            p_s.append(apper)
+        into = torch.cat(p_s, 0)
+        into = nom(into)
+        iii = perceptor.encode_image(into)
+        lat_l = 0
+        loss1 = [lat_l, 10 * -torch.cosine_similarity(t, iii).view(-1, 1).T.mean(1)]
+        loss = loss1[0] + loss1[1]
+        loss = loss.mean()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-    into = nom(into)
+        if i % 100 == 0:
+            with torch.no_grad():
+                al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
+            TF.to_pil_image(torch.tensor(al[0]).cpu()).save(
+                f"./images/images/{urlify(args.prompts[0])}.png"
+            )
+            print("new one")
 
-    iii = perceptor.encode_image(into)
-
-    llls = lats()
-    lat_l = 0
-
-    return [lat_l, 10 * -torch.cosine_similarity(t, iii).view(-1, 1).T.mean(1)]
-
-
-def train(i):
-    loss1 = ascend_txt()
-    loss = loss1[0] + loss1[1]
-    loss = loss.mean()
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    if itt % 100 == 0:
-        checkin(loss1)
+        if i > 10000:
+            break
+        i += 1
 
 
-clip.available_models()
-
-perceptor, preprocess = clip.load("ViT-B/32", jit=True)
-perceptor = perceptor.eval()
-
-
-prompt = "steak and honour #artstation"
-
-im_shape = [512, 512, 3]
-sideX, sideY, channels = im_shape
-
-
-target_image_size = sideX
-model = load_model("https://cdn.openai.com/dall-e/decoder.pkl", "cuda")
-
-
-lats = Pars().cuda()
-mapper = [lats.normu]
-optimizer = torch.optim.Adam([{"params": mapper, "lr": 0.1}])
-eps = 0
-
-tx = clip.tokenize(prompt)
-t = perceptor.encode_text(tx.cuda()).detach().clone()
-
-nom = torchvision.transforms.Normalize(
-    (0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)
-)
-
-with torch.no_grad():
-    mult = 1
-    al = unmap_pixels(torch.sigmoid(model(lats()).cpu().float())).numpy()
-    for allls in al:
-        displ(allls[:3])
-        print("\n")
-    # print(torch.topk(lats().view(1, 8192, -1), k=3, dim=-1))
-
-
-itt = 0
-for asatreat in range(10000):
-    train(itt)
-    itt += 1
+if __name__ == "__main__":
+    main()
