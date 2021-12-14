@@ -8,8 +8,6 @@ import argparse
 import PIL
 import matplotlib.pyplot as plt
 
-import os
-import random
 from IPython import display
 from IPython.core.interactiveshell import InteractiveShell
 
@@ -17,9 +15,6 @@ InteractiveShell.ast_node_interactivity = "all"
 
 import clip
 
-import io
-import sys
-import requests
 import re
 
 from dall_e import map_pixels, unmap_pixels, load_model
@@ -61,7 +56,7 @@ def main():
     parser.add_argument("--image_prompts", nargs="+", default=[])
     parser.add_argument("--noise_prompt_seeds", nargs="+", default=[])
     parser.add_argument("--noise_prompt_weights", nargs="+", default=[])
-    parser.add_argument("--size", nargs="+", default=[480, 480, 3])
+    parser.add_argument("--size", nargs="+", default=[480, 480])
     parser.add_argument("--init_image", type=str)
     parser.add_argument("--init_weight", type=float, default=0.0)
     parser.add_argument("--clip_model", type=str, default="ViT-B/32")
@@ -74,8 +69,7 @@ def main():
     args = parser.parse_args()
     args.size = [int(x) for x in args.size]
 
-    sideX, sideY, channels = args.size
-    target_image_size = sideX
+    sideX, sideY = args.size
 
     perceptor = clip.load(args.clip_model, jit=True)[0].eval()
 
@@ -108,7 +102,7 @@ def main():
                 .clip(0.5, 0.98)
             )
             offsetx = torch.randint(0, sideX - size, ())
-            offsety = torch.randint(0, sideX - size, ())
+            offsety = torch.randint(0, sideY - size, ())
             apper = out[:, :, offsetx : offsetx + size, offsety : offsety + size]
             apper = torch.nn.functional.interpolate(apper, (224, 224), mode="bilinear")
             p_s.append(apper)
@@ -129,7 +123,6 @@ def main():
             TF.to_pil_image(torch.tensor(al[0]).cpu()).save(
                 f"./images/images/{urlify(args.prompts[0])}.png"
             )
-            print("new one")
 
         if i > 10000:
             break
