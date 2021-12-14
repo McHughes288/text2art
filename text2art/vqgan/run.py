@@ -99,10 +99,10 @@ def main():
     parser.add_argument(
         "--vqgan_checkpoint", type=str, default="models/VQGAN/vqgan_imagenet_f16_1024.ckpt"
     )
-    parser.add_argument("--step_size", type=float, default=0.05)
+    parser.add_argument("--lr", type=float, default=0.05)
     parser.add_argument("--number_of_cuts", type=int, default=64)
     parser.add_argument("--cut_pow", type=float, default=1.0)
-    parser.add_argument("--display_freq", type=int, default=10)
+    parser.add_argument("--display_freq", type=int, default=50)
     parser.add_argument("--steps", type=int, default=500)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
@@ -154,7 +154,7 @@ def main():
         z = z.view([-1, toksY, toksX, e_dim]).permute(0, 3, 1, 2)
     z_orig = z.clone()
     z.requires_grad_(True)
-    opt = optim.Adam([z], lr=args.step_size)
+    opt = optim.Adam([z], lr=args.lr)
 
     model_params = sum(p.numel() for p in model.parameters()) / 1.0e6
     perceptor_params = sum(p.numel() for p in perceptor.parameters()) / 1.0e6

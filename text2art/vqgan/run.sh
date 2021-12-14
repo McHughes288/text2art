@@ -18,6 +18,7 @@ steps=500
 width=480
 height=480
 clip_model=ViT-B/32
+lr=0.05
 
 . ./scripts/parse_options.sh || exit 1;
 
@@ -27,7 +28,7 @@ clip_model=ViT-B/32
 [ ! -d "$CODE_DIR/models/ESRGAN" ] && echo "please download the enhancement model" && exit 1
 
 clip_model_stripped=$(echo $clip_model | tr -d '/')
-WORK_DIR=${WORK_ROOT}/model_${model_name}/${image_name}_${clip_model_stripped}_${width}x${height}
+WORK_DIR=${WORK_ROOT}/model_${model_name}/${image_name}_${clip_model_stripped}_${width}x${height}_lr${lr}
 image_dir=$WORK_DIR/images
 VENV=$CODE_DIR/venv
 
@@ -90,7 +91,8 @@ if [[ ! -f ${WORK_DIR}/done_train ]]; then
         --clip_model $clip_model \
         --size "$width" "$height" \
         --steps "$steps" \
-        --seed "$seed"
+        --seed "$seed" \
+        --lr "$lr"
 
     touch ${WORK_DIR}/done_train
 fi
