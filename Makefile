@@ -14,7 +14,7 @@ check:
 format:
 	black "${includes}"
 env:
-	pip3 install virtualenv 
+	sudo pip3 install virtualenv 
 	virtualenv -p python3 venv
 models:
-	./scripts/download_models.sh --model_name VQGAN
+	./scripts/download_models.sh

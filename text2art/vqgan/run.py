@@ -109,7 +109,7 @@ def main():
     args.size = [int(x) for x in args.size]
 
     # General setup
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}", flush=True)
     if args.seed is not None:
         torch.manual_seed(args.seed)
