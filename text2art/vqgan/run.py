@@ -221,7 +221,7 @@ def main():
                 print(f"losses: {losses_str}", flush=True)
             with torch.no_grad():
                 out = synthesize(z, model)
-                TF.to_pil_image(out[0].cpu()).save(f"{args.image_dir}/{text_prompt}_step{i}.png")
+                TF.to_pil_image(out[0].cpu()).save(f"{args.image_dir}/{text_prompt}_step{step}.png")
 
         # Sum losses for each prompt and update parameters accordingly
         loss = sum(losses)

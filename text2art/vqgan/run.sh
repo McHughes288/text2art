@@ -1,4 +1,4 @@
-#!/bin/bash -eux
+#!/bin/bash -eu
 
 SRC_DIR=$(dirname $(realpath $0))
 CODE_DIR=$(realpath $SRC_DIR/../..)
@@ -11,21 +11,23 @@ WORK_ROOT=/exp/$(whoami)/text2art
 
 model_name=VQGAN
 prompt=             # e.g. "A zombie walking through a rainforest #artstation"
-name=               # e.g. zombie
+image_name=               # e.g. zombie
 seed=1
 steps=500
 # Size (w768 h432 works for widescreen)
 width=480
 height=480
+clip_model=ViT-B/32
 
 . ./scripts/parse_options.sh || exit 1;
 
-[ -z $prompt ] && echo "please provide a prompt" && exit 1
-[ -z $name ] && echo "please provide a name" && exit 1
-[ ! -d $CODE_DIR/models/$model_name ] && echo "please download the generative model" && exit 1
-[ ! -d $CODE_DIR/models/ESRGAN ] && echo "please download the enhancement model" && exit 1
+[ -z "$prompt" ] && echo "please provide a prompt" && exit 1
+[ -z "$image_name" ] && echo "please provide a name" && exit 1
+[ ! -d "$CODE_DIR/models/$model_name" ] && echo "please download the generative model" && exit 1
+[ ! -d "$CODE_DIR/models/ESRGAN" ] && echo "please download the enhancement model" && exit 1
 
-WORK_DIR=${WORK_ROOT}/model_${model_name}/${name}
+clip_model_stripped=$(echo $clip_model | tr -d '/')
+WORK_DIR=${WORK_ROOT}/model_${model_name}/${image_name}_${clip_model_stripped}_${width}x${height}
 image_dir=$WORK_DIR/images
 VENV=$CODE_DIR/venv
 
@@ -85,6 +87,7 @@ if [[ ! -f ${WORK_DIR}/done_train ]]; then
         --image_dir "$image_dir" \
         --vqgan_config "$vqgan_config" \
         --vqgan_checkpoint "$vqgan_checkpoint" \
+        --clip_model $clip_model \
         --size "$width" "$height" \
         --steps "$steps" \
         --seed "$seed"
