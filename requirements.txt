@@ -19,5 +19,8 @@ jupyter
 jupyterlab
 matplotlib
 
+gdown
+opencv-python
+
 git+https://github.com/openai/CLIP.git
 -e git+https://github.com/CompVis/taming-transformers#egg=taming-transformers

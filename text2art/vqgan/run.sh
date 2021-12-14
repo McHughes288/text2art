@@ -1,4 +1,4 @@
-#!/bin/bash -eux
+#!/bin/bash -eu
 
 SRC_DIR=$(dirname $(realpath $0))
 CODE_DIR=$(realpath $SRC_DIR/../..)
@@ -11,27 +11,41 @@ WORK_ROOT=/exp/$(whoami)/text2art
 
 model_name=VQGAN
 prompt=             # e.g. "A zombie walking through a rainforest #artstation"
-name=               # e.g. zombie
+image_name=               # e.g. zombie
 seed=1
 steps=500
 # Size (w768 h432 works for widescreen)
 width=480
 height=480
+clip_model=ViT-B/32
 
 . ./scripts/parse_options.sh || exit 1;
 
-[ -z $prompt ] && echo "please provide a prompt" && exit 1
-[ -z $name ] && echo "please provide a name" && exit 1
+[ -z "$prompt" ] && echo "please provide a prompt" && exit 1
+[ -z "$image_name" ] && echo "please provide a name" && exit 1
+[ ! -d "$CODE_DIR/models/$model_name" ] && echo "please download the generative model" && exit 1
+[ ! -d "$CODE_DIR/models/ESRGAN" ] && echo "please download the enhancement model" && exit 1
 
-WORK_DIR=${WORK_ROOT}/model_${model_name}/${name}
+clip_model_stripped=$(echo $clip_model | tr -d '/')
+WORK_DIR=${WORK_ROOT}/model_${model_name}/${image_name}_${clip_model_stripped}_${width}x${height}
+image_dir=$WORK_DIR/images
 VENV=$CODE_DIR/venv
 
 vqgan_config="$CODE_DIR/models/VQGAN/vqgan_imagenet_f16_1024.yaml"
 vqgan_checkpoint="$CODE_DIR/models/VQGAN/vqgan_imagenet_f16_1024.ckpt"
 
-mkdir -p "$WORK_DIR"
+mkdir -p "$WORK_DIR" "$image_dir"
 ( cd $CODE_DIR && echo "$(date -u) $(git describe --always --abbrev=40 --dirty)")>> "${WORK_DIR}"/git_sha
 rsync --quiet -avhz --exclude-from "${CODE_DIR}/.gitignore" "$CODE_DIR"/* "$WORK_DIR"/code
+
+# Setup the super resolution code
+esrgan_dir="$WORK_DIR"/code/ESRGAN
+if [ ! -d "$esrgan_dir" ]; then
+    git clone --depth=1 https://github.com/xinntao/ESRGAN $esrgan_dir
+    rm -rf $esrgan_dir/models $esrgan_dir/figures $esrgan_dir/.git
+    ln -sf $CODE_DIR/models/ESRGAN $esrgan_dir/models
+fi
+rm -f $esrgan_dir/results/*.png $esrgan_dir/LR/*.png
 
 cat <<EOF >"${WORK_DIR}"/run.qsh
 #!/bin/bash
@@ -67,18 +81,28 @@ echo
 echo "\$(date -u) starting \${JOB_ID}" >> ${WORK_DIR}/sge_job_id
 source $VENV/bin/activate
 
-if [[ ! -f ${WORK_DIR}/done ]]; then
+if [[ ! -f ${WORK_DIR}/done_train ]]; then
     python3 -m text2art.vqgan.run \
         --prompts "$prompt" \
-        --work_dir "$WORK_DIR" \
+        --image_dir "$image_dir" \
         --vqgan_config "$vqgan_config" \
         --vqgan_checkpoint "$vqgan_checkpoint" \
+        --clip_model $clip_model \
         --size "$width" "$height" \
         --steps "$steps" \
-        --seed "$seed" 
+        --seed "$seed"
 
-    touch ${WORK_DIR}/done
+    touch ${WORK_DIR}/done_train
 fi
+
+if [[ ! -f ${WORK_DIR}/done_enhance ]]; then
+    cp -f $image_dir/final.png $esrgan_dir/LR
+    (cd $esrgan_dir && python3 $esrgan_dir/test.py)
+    ln -sf $esrgan_dir/results/final_rlt.png $WORK_DIR/final_enhanced.png
+    touch ${WORK_DIR}/done_enhance
+fi
+
+echo "Done"
 
 EOF
 chmod +x "${WORK_DIR}"/run.qsh
