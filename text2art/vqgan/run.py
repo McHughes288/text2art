@@ -6,6 +6,7 @@ from torch import optim, nn
 from torch.nn import functional as F
 from torchvision import transforms
 from torchvision.transforms import functional as TF
+from time import perf_counter
 
 from clip import clip
 from text2art.vqgan.util import (
@@ -84,7 +85,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--prompts", nargs="+", default=[], required=True)
-    parser.add_argument("--work_dir", type=str, default="./images")
+    parser.add_argument("--image_dir", type=str, default="./images")
     parser.add_argument("--image_prompts", nargs="+", default=[])
     parser.add_argument("--noise_prompt_seeds", nargs="+", default=[])
     parser.add_argument("--noise_prompt_weights", nargs="+", default=[])
@@ -115,8 +116,7 @@ def main():
 
     # Create output dir for images based on text prompt
     text_prompt = urlify(args.prompts[0])
-    image_dir = f"{args.work_dir}/images"
-    os.makedirs(image_dir, exist_ok=True)
+    os.makedirs(args.image_dir, exist_ok=True)
 
     # Load pre trained models
     model = load_vqgan_model(args.vqgan_config, args.vqgan_checkpoint).to(device)
@@ -156,6 +156,13 @@ def main():
     z.requires_grad_(True)
     opt = optim.Adam([z], lr=args.step_size)
 
+    model_params = sum(p.numel() for p in model.parameters()) / 1.0e6
+    perceptor_params = sum(p.numel() for p in perceptor.parameters()) / 1.0e6
+    print(f"VQGAN: e_dim={e_dim}, f={f}, n_toks={n_toks}, params={model_params:.2f}M")
+    print(f"CLIP: resolution={cut_size}, params={perceptor_params:.2f}M")
+    z_params = sum(z.shape)
+    print(f"z: params={z_params}")
+
     # Compile a list of prompts made up of embeddings to drive the encoded output image towards
     prompt_list = []
     # 1) Prompt via text to drive output towards
@@ -178,8 +185,10 @@ def main():
         embed = torch.empty([1, perceptor.visual.output_dim]).normal_(generator=gen)
         prompt_list.append(Prompt(embed, weight).to(device))
 
-    i = 0
+    step = 0
+    step_times = []
     while True:
+        step_start_time = perf_counter()
         opt.zero_grad()
 
         # Get output image based on our current embeddings z (that we are training)
@@ -198,12 +207,21 @@ def main():
             losses.append(prompt(iii))
 
         # Log losses and save out progress images
-        if i % args.display_freq == 0:
-            losses_str = ", ".join(f"{loss.item():g}" for loss in losses)
-            print(f"i: {i}, loss: {sum(losses).item():g}, losses: {losses_str}", flush=True)
+        if step % args.display_freq == 0:
+            if len(step_times) > 0:
+                av_step_time = sum(step_times) / len(step_times)
+            else:
+                av_step_time = 0
+            print(
+                f"step: {step}, loss: {sum(losses).item():.5f}, time: {av_step_time:.4f}",
+                flush=True,
+            )
+            if len(losses) > 1:
+                losses_str = ", ".join(f"{loss.item():g}" for loss in losses)
+                print(f"losses: {losses_str}", flush=True)
             with torch.no_grad():
                 out = synthesize(z, model)
-                TF.to_pil_image(out[0].cpu()).save(f"{image_dir}/{text_prompt}_step{i}.png")
+                TF.to_pil_image(out[0].cpu()).save(f"{args.image_dir}/{text_prompt}_step{i}.png")
 
         # Sum losses for each prompt and update parameters accordingly
         loss = sum(losses)
@@ -214,9 +232,15 @@ def main():
         with torch.no_grad():
             z.copy_(z.maximum(z_min).minimum(z_max))
 
-        if args.steps != -1 and i >= args.steps:
+        if args.steps != -1 and step >= args.steps:
+            with torch.no_grad():
+                out = synthesize(z, model)
+                TF.to_pil_image(out[0].cpu()).save(f"{args.image_dir}/final.png")
             break
-        i += 1
+
+        step += 1
+        elapsed = perf_counter() - step_start_time
+        step_times.append(elapsed)
 
 
 if __name__ == "__main__":
