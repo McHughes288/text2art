@@ -109,7 +109,7 @@ def main():
 
     # General setup
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print("Using device:", device)
+    print(f"Using device: {device}", flush=True)
     if args.seed is not None:
         torch.manual_seed(args.seed)
 
@@ -200,7 +200,7 @@ def main():
         # Log losses and save out progress images
         if i % args.display_freq == 0:
             losses_str = ", ".join(f"{loss.item():g}" for loss in losses)
-            print(f"i: {i}, loss: {sum(losses).item():g}, losses: {losses_str}")
+            print(f"i: {i}, loss: {sum(losses).item():g}, losses: {losses_str}", flush=True)
             with torch.no_grad():
                 out = synthesize(z, model)
                 TF.to_pil_image(out[0].cpu()).save(f"{image_dir}/{text_prompt}_step{i}.png")
@@ -214,9 +214,9 @@ def main():
         with torch.no_grad():
             z.copy_(z.maximum(z_min).minimum(z_max))
 
-        i += 1
         if args.steps != -1 and i >= args.steps:
             break
+        i += 1
 
 
 if __name__ == "__main__":

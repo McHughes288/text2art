@@ -26,6 +26,9 @@ height=480
 WORK_DIR=${WORK_ROOT}/model_${model_name}/${name}
 VENV=$CODE_DIR/venv
 
+vqgan_config="$CODE_DIR/models/VQGAN/vqgan_imagenet_f16_1024.yaml"
+vqgan_checkpoint="$CODE_DIR/models/VQGAN/vqgan_imagenet_f16_1024.ckpt"
+
 mkdir -p "$WORK_DIR"
 ( cd $CODE_DIR && echo "$(date -u) $(git describe --always --abbrev=40 --dirty)")>> "${WORK_DIR}"/git_sha
 rsync --quiet -avhz --exclude-from "${CODE_DIR}/.gitignore" "$CODE_DIR"/* "$WORK_DIR"/code
@@ -68,6 +71,8 @@ if [[ ! -f ${WORK_DIR}/done ]]; then
     python3 -m text2art.vqgan.run \
         --prompts "$prompt" \
         --work_dir "$WORK_DIR" \
+        --vqgan_config "$vqgan_config" \
+        --vqgan_checkpoint "$vqgan_checkpoint" \
         --size "$width" "$height" \
         --steps "$steps" \
         --seed "$seed" 
