@@ -62,8 +62,9 @@ def main():
     parser.add_argument("--number_of_cuts", type=int, default=64)
     parser.add_argument("--cut_pow", type=float, default=1.0)
     parser.add_argument("--display_freq", type=int, default=10)
-    parser.add_argument("--steps", type=int, default=50000)
+    parser.add_argument("--steps", type=int, default=500)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--lr", type=float, default=0.1)
     args = parser.parse_args()
     args.size = [int(x) for x in args.size]
 
@@ -75,7 +76,7 @@ def main():
 
     lats = Pars().cuda()
     mapper = [lats.normu]
-    optimizer = torch.optim.Adam([{"params": mapper, "lr": 0.1}])
+    optimizer = torch.optim.Adam([{"params": mapper, "lr": args.lr}])
     eps = 0
 
     tx = clip.tokenize(args.prompts)
@@ -115,15 +116,17 @@ def main():
         loss.backward()
         optimizer.step()
 
-        if i % 100 == 0:
-            with torch.no_grad():
-                al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
-            TF.to_pil_image(torch.tensor(al[0]).cpu()).save(
-                f"./images/images/{urlify(args.prompts[0])}.png"
-            )
+        # if i % 100 == 0:
+        # with torch.no_grad():
+        # al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
+        # TF.to_pil_image(torch.tensor(al[0]).cpu()).save(
+        #    f"./images/images/{urlify(args.prompts[0])}.png"
+        # )
 
-        if i > 10000:
+        if i > args.steps:
+            TF.to_pil_image(out[0].cpu()).save(f"{args.image_dir}/final.png")
             break
+
         i += 1
 
 
