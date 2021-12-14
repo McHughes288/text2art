@@ -33,42 +33,6 @@ def displ(img, pre_scaled=True):
     return display.Image(str(3) + ".png")
 
 
-def gallery(array, ncols=2):
-    nindex, height, width, intensity = array.shape
-    nrows = nindex // ncols
-    assert nindex == nrows * ncols
-    # want result.shape = (height*nrows, width*ncols, intensity)
-    result = (
-        array.reshape(nrows, ncols, height, width, intensity)
-        .swapaxes(1, 2)
-        .reshape(height * nrows, width * ncols, intensity)
-    )
-    return result
-
-
-def card_padded(im, to_pad=3):
-    return np.pad(
-        np.pad(
-            np.pad(im, [[1, 1], [1, 1], [0, 0]], constant_values=0),
-            [[2, 2], [2, 2], [0, 0]],
-            constant_values=1,
-        ),
-        [[to_pad, to_pad], [to_pad, to_pad], [0, 0]],
-        constant_values=0,
-    )
-
-
-def get_all(img):
-    img = np.transpose(img, (0, 2, 3, 1))
-    cards = np.zeros((img.shape[0], sideX + 12, sideY + 12, 3))
-    for i in range(len(img)):
-        cards[i] = card_padded(img[i])
-    print(img.shape)
-    cards = gallery(cards)
-    # imageio.imwrite(str(3) + '.png', np.array(cards))
-    return display.Image(str(3) + ".png")
-
-
 def preprocess(img):
     s = min(img.size)
 
@@ -102,6 +66,9 @@ def checkin(loss):
         al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
     for allls in al:
         displ(allls)
+        print(al[0].shape)
+        TF.to_pil_image(torch.tensor(al[0]).cpu()).save(f"./images/images/{prompt}.png")
+
         # display.display(display.Image(str(3)+'.png'))
         # print('\n')
     # the people spoke and they love "ding"
@@ -158,7 +125,7 @@ perceptor, preprocess = clip.load("ViT-B/32", jit=True)
 perceptor = perceptor.eval()
 
 
-prompt = "three engineers hard at work"
+prompt = "steak and honour #artstation"
 
 im_shape = [512, 512, 3]
 sideX, sideY, channels = im_shape
