@@ -6,7 +6,7 @@ Hackamatics project 2021 with the aim to pull together all text2art resources an
 ```
 # Setup environment and download models (one time only)
 make env
-make activate
+source venv/bin/activate
 make deps
 make models
 ```
@@ -15,6 +15,6 @@ make models
 ```
 # grab GPU then run
 qlogin -now n -pe smp 1 -q aml-gpu.q -l gpu=1 -pty y -N D_$(whoami)
-cd ~/git/text2art && make activate
+cd ~/git/text2art && source venv/bin/activate
 python3 -m text2art.vqgan.run --prompts "Three engineers hard at work during Hackamatics #artstation"
 ```
