@@ -1,35 +1,17 @@
 from clip import model
 import torch
-import numpy as np
 import torchvision
-import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 import argparse
 
-from IPython import display
 from IPython.core.interactiveshell import InteractiveShell
 
 InteractiveShell.ast_node_interactivity = "all"
-
 import clip
-
-import re
-
+import os
 from dall_e import unmap_pixels, load_model
 
-
-def displ(img, pre_scaled=True):
-    img = np.array(img)[:, :, :]
-    img = np.transpose(img, (1, 2, 0))
-    return display.Image(str(3) + ".png")
-
-
-def urlify(s):
-    # Remove all non-word characters (everything except numbers and letters)
-    s = re.sub(r"[^\w\s]", "", s)
-    # Replace all runs of whitespace with a single dash
-    s = re.sub(r"\s+", "-", s)
-    return s
+from text2art.vqgan.util import urlify
 
 
 class Pars(torch.nn.Module):
@@ -50,24 +32,21 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--prompts", nargs="+", default=[], required=True)
-    parser.add_argument("--work_dir", type=str, default="./images")
-    parser.add_argument("--image_prompts", nargs="+", default=[])
-    parser.add_argument("--noise_prompt_seeds", nargs="+", default=[])
-    parser.add_argument("--noise_prompt_weights", nargs="+", default=[])
+    parser.add_argument("--image_dir", type=str, default="./images")
     parser.add_argument("--size", nargs="+", default=[480, 480])
-    parser.add_argument("--init_image", type=str)
-    parser.add_argument("--init_weight", type=float, default=0.0)
     parser.add_argument("--clip_model", type=str, default="ViT-B/32")
-    parser.add_argument("--step_size", type=float, default=0.05)
     parser.add_argument("--number_of_cuts", type=int, default=64)
-    parser.add_argument("--cut_pow", type=float, default=1.0)
-    parser.add_argument("--display_freq", type=int, default=10)
     parser.add_argument("--steps", type=int, default=500)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=0.1)
+    parser.add_argument("--log_every", type=int, default=50)
     args = parser.parse_args()
     args.size = [int(x) for x in args.size]
     sideX, sideY = args.size
+
+    os.makedirs(args.image_dir, exist_ok=True)
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
 
     # Load CLIP and DALL-E models
     perceptor = clip.load(args.clip_model, jit=True)[0].eval()
@@ -118,12 +97,12 @@ def main():
         loss.backward()
         optimizer.step()
 
-        # if i % 100 == 0:
-        # with torch.no_grad():
-        # al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
-        # TF.to_pil_image(torch.tensor(al[0]).cpu()).save(
-        #    f"./images/images/{urlify(args.prompts[0])}.png"
-        # )
+        if i % args.log_every == 0:
+            with torch.no_grad():
+                al = unmap_pixels(torch.sigmoid(model(lats())[:, :3]).cpu().float()).numpy()
+            TF.to_pil_image(torch.tensor(al[0]).cpu()).save(
+                f"{args.image_dir}/{urlify(args.prompts[0])}_step{i}.png"
+            )
 
         if i > args.steps:
             TF.to_pil_image(out[0].cpu()).save(f"{args.image_dir}/final.png")
