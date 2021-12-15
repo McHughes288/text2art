@@ -19,6 +19,9 @@ width=480
 height=480
 clip_model=ViT-B/32
 lr=0.05
+init_image=
+init_weight=0.01        # only used in conjunction with initial image
+log_every=50
 
 . ./scripts/parse_options.sh || exit 1;
 
@@ -47,6 +50,12 @@ if [ ! -d "$esrgan_dir" ]; then
     ln -sf $CODE_DIR/models/ESRGAN $esrgan_dir/models
 fi
 rm -f $esrgan_dir/results/*.png $esrgan_dir/LR/*.png
+
+init_image_arg=""
+if [ -f $init_image ]; then
+    cp $init_image $image_dir/init.png
+    init_image_arg="--init_image $image_dir/init.png --init_weight $init_weight"
+fi
 
 cat <<EOF >"${WORK_DIR}"/run.qsh
 #!/bin/bash
@@ -92,7 +101,9 @@ if [[ ! -f ${WORK_DIR}/done_train ]]; then
         --size "$width" "$height" \
         --steps "$steps" \
         --seed "$seed" \
-        --lr "$lr"
+        --lr "$lr" \
+        --log_every "$log_every" \
+        $init_image_arg
 
     touch ${WORK_DIR}/done_train
 fi

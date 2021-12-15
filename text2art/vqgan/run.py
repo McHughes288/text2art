@@ -102,7 +102,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.05)
     parser.add_argument("--number_of_cuts", type=int, default=64)
     parser.add_argument("--cut_pow", type=float, default=1.0)
-    parser.add_argument("--display_freq", type=int, default=50)
+    parser.add_argument("--log_every", type=int, default=50)
     parser.add_argument("--steps", type=int, default=500)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
@@ -207,7 +207,7 @@ def main():
             losses.append(prompt(iii))
 
         # Log losses and save out progress images
-        if step % args.display_freq == 0:
+        if step % args.log_every == 0:
             if len(step_times) > 0:
                 av_step_time = sum(step_times) / len(step_times)
             else:
