@@ -6,8 +6,9 @@ CODE_DIR=$(realpath $SRC_DIR/../..)
 EXPNAME=$(basename $BASH_SOURCE)
 JOB_NAME=text2art
 JOB_REASON="text2art"
-JOB_QUEUE="aml-gpu.q@gpu-aa,aml-gpu.q@gpu-ab"
-WORK_ROOT=/exp/$(whoami)/text2art
+JOB_QUEUE="aml-gpu.q@gpu-aa,aml-gpu.q@gpu-ab,aml-gpu.q@b3,aml-gpu.q@b2"
+WORK_ROOT=
+WORK_DIR=
 
 model_name=VQGAN
 prompt=             # e.g. "A zombie walking through a rainforest #artstation"
@@ -31,7 +32,8 @@ log_every=50
 [ ! -d "$CODE_DIR/models/ESRGAN" ] && echo "please download the enhancement model" && exit 1
 
 clip_model_stripped=$(echo $clip_model | tr -d '/')
-WORK_DIR=${WORK_ROOT}/model_${model_name}/${image_name}_${clip_model_stripped}_${width}x${height}_lr${lr}
+WORK_ROOT=${WORK_ROOT:-/exp/$(whoami)/text2art/$(date +"%Y%m%d")}
+WORK_DIR=${WORK_DIR:-${WORK_ROOT}/model_${model_name}/${image_name}_${clip_model_stripped}_${width}x${height}_lr${lr}}
 image_dir=$WORK_DIR/images
 VENV=$CODE_DIR/venv
 
@@ -39,8 +41,8 @@ vqgan_config="$CODE_DIR/models/VQGAN/vqgan_imagenet_f16_1024.yaml"
 vqgan_checkpoint="$CODE_DIR/models/VQGAN/vqgan_imagenet_f16_1024.ckpt"
 
 mkdir -p "$WORK_DIR" "$image_dir"
-( cd $CODE_DIR && echo "$(date -u) $(git describe --always --abbrev=40 --dirty)")>> "${WORK_DIR}"/git_sha
 rsync --quiet -avhz --exclude-from "${CODE_DIR}/.gitignore" "$CODE_DIR"/* "$WORK_DIR"/code
+( cd $CODE_DIR && echo "$(date -u) $(git describe --always --abbrev=40 --dirty)")>> "${WORK_DIR}"/code/git_sha
 
 # Setup the super resolution code
 esrgan_dir="$WORK_DIR"/code/ESRGAN
@@ -52,7 +54,7 @@ fi
 rm -f $esrgan_dir/results/*.png $esrgan_dir/LR/*.png
 
 init_image_arg=""
-if [ -f $init_image ]; then
+if [ -f "$init_image" ]; then
     cp $init_image $image_dir/init.png
     init_image_arg="--init_image $image_dir/init.png --init_weight $init_weight"
 fi
@@ -88,10 +90,9 @@ echo "sge_wd:      \$(pwd)"
 echo "pstree_pid:  \$\$"
 echo
 
-echo "\$(date -u) starting \${JOB_ID}" >> ${WORK_DIR}/sge_job_id
 source $VENV/bin/activate
 
-if [[ ! -f ${WORK_DIR}/done_train ]]; then
+if [[ ! -f ${WORK_DIR}/code/done_train ]]; then
     python3 -m text2art.vqgan.run \
         --prompts "$prompt" \
         --image_dir "$image_dir" \
@@ -104,15 +105,16 @@ if [[ ! -f ${WORK_DIR}/done_train ]]; then
         --lr "$lr" \
         --log_every "$log_every" \
         $init_image_arg
+    cp -f ${image_dir}/final.png ${WORK_DIR}/${image_name}.png
 
-    touch ${WORK_DIR}/done_train
+    touch ${WORK_DIR}/code/done_train
 fi
 
-if [[ ! -f ${WORK_DIR}/done_enhance ]]; then
+if [[ ! -f ${WORK_DIR}/code/done_enhance ]]; then
     cp -f $image_dir/final.png $esrgan_dir/LR
     (cd $esrgan_dir && python3 $esrgan_dir/test.py)
-    ln -sf $esrgan_dir/results/final_rlt.png $WORK_DIR/final_enhanced.png
-    touch ${WORK_DIR}/done_enhance
+    mv $esrgan_dir/results/final_rlt.png $WORK_DIR/${image_name}_enhanced.png
+    touch ${WORK_DIR}/code/done_enhance
 fi
 
 echo "Done"

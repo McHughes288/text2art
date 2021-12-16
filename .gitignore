@@ -1,6 +1,6 @@
 logs
 __pycache__
-venv
+venv*
 models
 .ipynb_checkpoints
 .vscode
@@ -11,3 +11,4 @@ taming
 *.png
 images
 ESRGAN
+init_image
