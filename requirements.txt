@@ -9,6 +9,7 @@ omegaconf
 pytorch-lightning
 einops
 transformers
+dall-e
 
 black==20.8b1
 flake8
@@ -23,4 +24,5 @@ gdown
 opencv-python
 
 git+https://github.com/openai/CLIP.git
+git+https://github.com/openai/DALL-E.git
 -e git+https://github.com/CompVis/taming-transformers#egg=taming-transformers
